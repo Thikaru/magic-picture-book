@@ -792,22 +792,22 @@
         /* ============================================================
            絵本データ（Supabaseから取得）
            ============================================================ */
-        let storiesData = {};
-        let latestStoryKey = '';
-        let currentStoryKey = '';
+        let storiesData = {};       // { [id]: { title, genre, pages, date, created_at } }
+        let latestStoryId = '';
+        let currentStoryId = '';
         let activePageIndex = 0;
         let isAudioEnabled = false;
         let speechSynth = window.speechSynthesis;
         let speechUtterance = null;
         let humanVoice = null;
         let iosSpeechKeepAlive = null;
-        let readStories = new Set();
+        let readStories = new Set();  // id のセット
         let returnTo = 'home';
         let libraryFilter = 'all';
 
         async function fetchStories() {
             const res = await fetch(
-                `${SUPABASE_URL}/rest/v1/stories?select=date,title,genre,pages&order=date.desc`,
+                `${SUPABASE_URL}/rest/v1/stories?select=id,date,title,genre,pages,created_at&order=created_at.desc`,
                 {
                     headers: {
                         'apikey': SUPABASE_PUBLISHABLE_KEY,
@@ -819,18 +819,31 @@
             return res.json();
         }
 
+        // JST の今日の日付を "YYYY-MM-DD" で返す
+        function getTodayJST() {
+            const jst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+            return jst.toISOString().slice(0, 10);
+        }
+
         async function initApp() {
             try {
                 const stories = await fetchStories();
                 stories.forEach(s => {
-                    storiesData[s.date] = { title: s.title, genre: s.genre, pages: s.pages };
+                    storiesData[s.id] = {
+                        title: s.title, genre: s.genre, pages: s.pages,
+                        date: s.date, created_at: s.created_at
+                    };
                 });
 
                 const readBtn = document.getElementById('home-read-btn');
                 if (stories.length > 0) {
-                    latestStoryKey = stories[0].date;
-                    readBtn.textContent = `今日の本を読む：「${storiesData[latestStoryKey].title}」`;
-                    readBtn.onclick = () => enterImmersiveView(latestStoryKey, 'home');
+                    latestStoryId = stories[0].id;
+                    const latest = storiesData[latestStoryId];
+                    const isToday = latest.date === getTodayJST();
+                    readBtn.textContent = isToday
+                        ? `今日の本を読む：「${latest.title}」`
+                        : `最新の本を読む：「${latest.title}」`;
+                    readBtn.onclick = () => enterImmersiveView(latestStoryId, 'home');
                 } else {
                     readBtn.textContent = 'まだ物語がありません';
                     readBtn.disabled = true;
@@ -875,9 +888,21 @@
         }
 
         /* ----- 日付フォーマット ----- */
-        function formatDate(key) {
-            const [y, m, d] = key.split('-');
+        function formatDate(dateStr) {
+            const [y, m, d] = dateStr.split('-');
             return `${y}年${parseInt(m, 10)}月${parseInt(d, 10)}日`;
+        }
+
+        // 同日複数冊がある場合は時刻も付与して区別する
+        function formatDateLabel(story, showTime) {
+            let label = formatDate(story.date);
+            if (showTime && story.created_at) {
+                const dt = new Date(new Date(story.created_at).getTime() + 9 * 3600 * 1000);
+                const hh = String(dt.getUTCHours()).padStart(2, '0');
+                const mm = String(dt.getUTCMinutes()).padStart(2, '0');
+                label += ` ${hh}:${mm}`;
+            }
+            return label;
         }
 
         /* ----- 書庫ページ ----- */
@@ -897,22 +922,36 @@
         function renderLibrary() {
             const list = document.getElementById("lib-list");
             list.innerHTML = "";
-            const keys = Object.keys(storiesData).sort().reverse();
+
+            // 新着順（created_at 降順）でソート
+            const sortedIds = Object.keys(storiesData).sort((a, b) =>
+                new Date(storiesData[b].created_at) - new Date(storiesData[a].created_at)
+            );
+
+            // 同日に複数冊ある日付を検出
+            const dateCounts = {};
+            sortedIds.forEach(id => {
+                const d = storiesData[id].date;
+                dateCounts[d] = (dateCounts[d] || 0) + 1;
+            });
+
             let shown = 0;
-            keys.forEach(key => {
-                const story = storiesData[key];
-                const isRead = readStories.has(key);
+            sortedIds.forEach(id => {
+                const story = storiesData[id];
+                const isRead = readStories.has(id);
                 if (libraryFilter === "unread" && isRead) return;
                 if (libraryFilter === "read" && !isRead) return;
                 shown++;
+                const multipleToday = dateCounts[story.date] > 1;
+                const dateLabel = formatDateLabel(story, multipleToday);
                 const card = document.createElement("div");
                 card.className = "lib-card";
-                card.onclick = () => enterImmersiveView(key, "library");
+                card.onclick = () => enterImmersiveView(id, "library");
                 card.innerHTML = `
                     <div class="lib-thumb"><img src="${story.pages[0].img}" alt=""></div>
                     <div class="lib-info">
                         <div class="lib-meta">
-                            <span class="lib-date">${formatDate(key)}</span>
+                            <span class="lib-date">${dateLabel}</span>
                             <span class="lib-genre">${story.genre || "ものがたり"}</span>
                         </div>
                         <div class="lib-title">${story.title}</div>
@@ -932,7 +971,7 @@
         function closeAiModalBg(e) { if (e.target.id === "ai-modal") closeAiModal(); }
 
         function enterImmersiveView(key, from) {
-            currentStoryKey = key;
+            currentStoryId = key;
             returnTo = from || 'home';
             if (returnTo === 'home') {
                 document.getElementById("home-screen").classList.add("fading-out");
@@ -946,7 +985,7 @@
                 const stage = document.getElementById("story-stage");
                 stage.className = "book-wrapper";
 
-                setupStory(currentStoryKey);
+                setupStory(currentStoryId);
             }, 800);
         }
 
@@ -983,10 +1022,10 @@
             const stage = document.getElementById("story-stage");
             stage.classList.remove("stage-opened");
 
-            const isFirstTime = !readStories.has(currentStoryKey);
+            const isFirstTime = !readStories.has(currentStoryId);
 
             if (isFirstTime) {
-                readStories.add(currentStoryKey);
+                readStories.add(currentStoryId);
                 setTimeout(() => { stage.classList.add("closing-animation"); }, 1400);
                 setTimeout(() => { backToOrigin(true); }, 2500);
             } else {
@@ -1052,7 +1091,7 @@
         }
 
         function updateButtonVisibility() {
-            const story = storiesData[currentStoryKey];
+            const story = storiesData[currentStoryId];
             const closeMiddleBtn = document.getElementById("close-middle-btn");
             const finishBtn = document.getElementById("finish-btn");
             if (activePageIndex === story.pages.length - 1) {
@@ -1065,7 +1104,7 @@
         }
 
         function nextPage() {
-            const story = storiesData[currentStoryKey];
+            const story = storiesData[currentStoryId];
             if (activePageIndex < story.pages.length - 1) {
                 const currentPage = document.getElementById(`immersive-page-${activePageIndex}`);
                 currentPage.classList.remove("active");
@@ -1098,8 +1137,8 @@
         function playVoice() {
             stopVoice();
             if (!humanVoice) loadBestJapaneseVoice();
-            if (!currentStoryKey || !storiesData[currentStoryKey]) return;
-            const story = storiesData[currentStoryKey];
+            if (!currentStoryId || !storiesData[currentStoryId]) return;
+            const story = storiesData[currentStoryId];
             const currentText = story.pages[activePageIndex].text;
             speechUtterance = new SpeechSynthesisUtterance(currentText);
             if (humanVoice) speechUtterance.voice = humanVoice;
