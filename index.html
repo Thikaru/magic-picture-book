@@ -354,7 +354,10 @@
            5. コントロールパネル
            ------------------------------------------ */
         .global-controls-panel {
-            position: fixed; bottom: 30px; right: 30px;
+            /* position:fixed → absolute に変更（親が fixed inset:0 のため視覚的に同じ）
+               iOS Safari の fixed 要素タップ不具合を回避する */
+            position: absolute; bottom: 30px; right: 30px;
+            bottom: max(30px, calc(30px + env(safe-area-inset-bottom)));
             display: flex; flex-direction: column; gap: 15px; align-items: flex-end;
             z-index: 2000; transition: opacity 0.8s ease;
         }
@@ -365,7 +368,7 @@
             width: 52px; height: 52px; cursor: pointer;
             display: flex; align-items: center; justify-content: center;
             box-shadow: 0 4px 15px rgba(0,0,0,0.4); backdrop-filter: blur(5px);
-            transition: all 0.3s;
+            transition: all 0.3s; touch-action: manipulation;
         }
         .audio-toggle-btn:hover { transform: scale(1.08); border-color: var(--primary-glow); }
         .audio-toggle-btn.active {
@@ -382,9 +385,10 @@
 
         .close-middle-btn {
             background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
-            color: rgba(255,255,255,0.7); padding: 10px 24px; font-size: 0.9rem;
+            color: rgba(255,255,255,0.7); padding: 12px 24px; font-size: 0.9rem;
             font-weight: bold; border-radius: 20px; cursor: pointer;
-            transition: all 0.3s; display: block;
+            transition: all 0.3s; display: block; touch-action: manipulation;
+            min-height: 44px;
         }
         .close-middle-btn:hover { background: rgba(255,255,255,0.2); border-color: #ffffff; color: #ffffff; }
 
@@ -393,7 +397,8 @@
             color: #4a0000; border: none; padding: 12px 28px; font-size: 0.95rem;
             font-weight: bold; border-radius: 25px; cursor: pointer;
             box-shadow: 0 5px 15px rgba(0,0,0,0.3); display: none;
-            transition: transform 0.2s, box-shadow 0.2s;
+            transition: transform 0.2s, box-shadow 0.2s; touch-action: manipulation;
+            min-height: 44px;
         }
         .finish-reading-btn:hover { transform: scale(1.05); box-shadow: 0 0 22px var(--primary-glow); }
 
@@ -528,6 +533,40 @@
 
         @media (prefers-reduced-motion: reduce) {
             *, *::before, *::after { animation: none !important; }
+        }
+
+        /* ------------------------------------------
+           スマホ対応
+           ------------------------------------------ */
+        @media (max-width: 640px) {
+            .book-wrapper {
+                width: 100%;
+                height: 78vh;
+            }
+            .global-controls-panel {
+                bottom: max(14px, env(safe-area-inset-bottom));
+                right: 10px;
+                gap: 10px;
+            }
+            .close-middle-btn,
+            .finish-reading-btn {
+                font-size: 0.82rem;
+                padding: 12px 16px;
+            }
+            .page-content-box {
+                padding: 6px 18px 14px 18px;
+            }
+            .page-text {
+                font-size: 1rem;
+                line-height: 1.65;
+            }
+            .book-cover h2 {
+                font-size: 1.5rem;
+                margin: 10px 0;
+            }
+            .click-layer { width: 28%; }
+            .home-book-icon { font-size: 4rem; margin: 18px 0; }
+            #home-title { font-size: 1.8rem; }
         }
     </style>
 </head>
@@ -761,6 +800,7 @@
         let speechSynth = window.speechSynthesis;
         let speechUtterance = null;
         let humanVoice = null;
+        let iosSpeechKeepAlive = null;
         let readStories = new Set();
         let returnTo = 'home';
         let libraryFilter = 'all';
@@ -815,9 +855,21 @@
         /* ----- 音声 ----- */
         function loadBestJapaneseVoice() {
             const voices = speechSynth.getVoices();
+            if (voices.length === 0) return;
             humanVoice = voices.find(v => v.lang === 'ja-JP' && (v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('Microsoft')))
-                         || voices.find(v => v.lang === 'ja-JP');
+                         || voices.find(v => v.lang === 'ja-JP')
+                         || voices.find(v => v.lang.startsWith('ja'));
         }
+        // iOS Safari は onvoiceschanged が発火しないことがあるためポーリングで待機
+        function loadVoicesWithRetry(attempt) {
+            const voices = speechSynth.getVoices();
+            if (voices.length > 0) {
+                loadBestJapaneseVoice();
+            } else if (attempt < 20) {
+                setTimeout(() => loadVoicesWithRetry(attempt + 1), 250);
+            }
+        }
+        loadVoicesWithRetry(0);
         if (speechSynth.onvoiceschanged !== undefined) {
             speechSynth.onvoiceschanged = loadBestJapaneseVoice;
         }
@@ -1046,6 +1098,7 @@
         function playVoice() {
             stopVoice();
             if (!humanVoice) loadBestJapaneseVoice();
+            if (!currentStoryKey || !storiesData[currentStoryKey]) return;
             const story = storiesData[currentStoryKey];
             const currentText = story.pages[activePageIndex].text;
             speechUtterance = new SpeechSynthesisUtterance(currentText);
@@ -1053,10 +1106,15 @@
             speechUtterance.lang = 'ja-JP';
             speechUtterance.rate = 0.92;
             speechUtterance.pitch = 1.05;
+            // iOS Safari バグ対策: 約15秒で音声が停止するため定期的に resume する
+            iosSpeechKeepAlive = setInterval(() => {
+                if (speechSynth.speaking) { speechSynth.pause(); speechSynth.resume(); }
+            }, 12000);
             speechSynth.speak(speechUtterance);
         }
 
         function stopVoice() {
+            if (iosSpeechKeepAlive) { clearInterval(iosSpeechKeepAlive); iosSpeechKeepAlive = null; }
             if (speechSynth.speaking) speechSynth.cancel();
         }
     </script>
