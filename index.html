@@ -8,31 +8,38 @@
 </head>
 <body>
 
+    <!-- 言語切り替えボタン（全画面共通固定表示） -->
+    <div class="lang-toggle" id="lang-toggle">
+        <button class="lang-btn active" id="lang-ja" onclick="setLang('ja')">JP</button>
+        <span class="lang-sep">|</span>
+        <button class="lang-btn" id="lang-en" onclick="setLang('en')">EN</button>
+    </div>
+
     <!-- ローディング画面（データ取得中に表示） -->
     <div id="loading-screen">
         <div class="loading-inner">
             <div class="loading-book">📖</div>
-            <p class="loading-text">物語を読み込み中…</p>
+            <p class="loading-text" data-i18n="loading">物語を読み込み中…</p>
         </div>
     </div>
 
     <canvas id="ambient-home"></canvas>
 
     <div class="memory-toast" id="memory-toast">
-        <span>✨</span> 物語を読み終えました。「読破」に記録しました
+        <span data-i18n="toastRead">✨ 物語を読み終えました。「読破」に記録しました</span>
     </div>
 
     <div id="home-screen">
-        <h1 id="home-title">魔法の書庫</h1>
+        <h1 id="home-title" data-i18n="homeTitle">魔法の書庫</h1>
         <div id="home-subtitle">THE LIBRARY OF MAGIC TALES</div>
         <div class="home-book-icon">📖</div>
         <div class="home-actions">
             <button class="open-btn" id="home-read-btn">
                 今日の本を読む
             </button>
-            <button class="ghost-btn" onclick="openLibrary()">📚 書庫を訪ねる</button>
+            <button class="ghost-btn" onclick="openLibrary()" data-i18n="openLibrary">📚 書庫を訪ねる</button>
         </div>
-        <button class="notice-btn" onclick="openAiModal()">この絵本について</button>
+        <button class="notice-btn" onclick="openAiModal()" data-i18n="about">この絵本について</button>
     </div>
 
     <!-- 書庫ページ -->
@@ -40,14 +47,14 @@
         <div class="library-inner">
             <header class="lib-header">
                 <button class="lib-back" onclick="closeLibrary()">← もどる</button>
-                <h2>📚 魔法の書庫</h2>
+                <h2 data-i18n="libraryTitle">📚 魔法の書庫</h2>
                 <span class="lib-count" id="lib-count"></span>
             </header>
-            <p class="lib-lead">これまでに綴られた物語たち。まだ読んでいない物語も、いつでも開くことができます。</p>
+            <p class="lib-lead" data-i18n="libraryLead">これまでに綴られた物語たち。まだ読んでいない物語も、いつでも開くことができます。</p>
             <div class="lib-filters">
-                <button class="filter-tab active" onclick="setFilter('all', this)">すべて</button>
-                <button class="filter-tab" onclick="setFilter('unread', this)">未読</button>
-                <button class="filter-tab" onclick="setFilter('read', this)">読破</button>
+                <button class="filter-tab active" onclick="setFilter('all', this)" data-i18n="filterAll">すべて</button>
+                <button class="filter-tab" onclick="setFilter('unread', this)" data-i18n="filterUnread">未読</button>
+                <button class="filter-tab" onclick="setFilter('read', this)" data-i18n="filterRead">読破</button>
             </div>
             <div class="lib-list" id="lib-list"></div>
         </div>
@@ -57,9 +64,9 @@
     <div id="ai-modal" class="modal-overlay" onclick="closeAiModalBg(event)">
         <div class="modal-card">
             <div class="modal-icon">✨</div>
-            <h3>この絵本について</h3>
-            <p>このサイトで公開されている絵本の文章と挿絵は、すべてAIによって自動生成されたものです。実在の人物・団体・出来事とは関係ありません。生成された物語のひとときを、どうぞお楽しみください。</p>
-            <button class="modal-close" onclick="closeAiModal()">とじる</button>
+            <h3 data-i18n="aboutTitle">この絵本について</h3>
+            <p data-i18n="aboutBody">このサイトで公開されている絵本の文章と挿絵は、すべてAIによって自動生成されたものです。実在の人物・団体・出来事とは関係ありません。生成された物語のひとときを、どうぞお楽しみください。</p>
+            <button class="modal-close" onclick="closeAiModal()" data-i18n="close">とじる</button>
         </div>
     </div>
 
@@ -95,10 +102,10 @@
         <button class="audio-toggle-btn" id="audio-toggle" onclick="toggleAudio()" title="読み聞かせ（デフォルトOFF）">
             <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
         </button>
-        <button class="close-middle-btn" id="close-middle-btn" onclick="closeBookInMiddle()" title="途中で閉じる">
+        <button class="close-middle-btn" id="close-middle-btn" onclick="closeBookInMiddle()" title="途中で閉じる" data-i18n="closeBook">
             物語を閉じる
         </button>
-        <button class="finish-reading-btn" id="finish-btn" onclick="closeAndSaveStory()">
+        <button class="finish-reading-btn" id="finish-btn" onclick="closeAndSaveStory()" data-i18n="finishBook">
             読み終えて本を閉じる
         </button>
     </div>
