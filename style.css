@@ -316,7 +316,8 @@ header h1 {
     padding: 26px 26px 8px 26px;
 }
 .page-image-box img {
-    max-width: 98%; max-height: 100%;
+    width: 98%; height: auto;
+    max-height: 100%;
     object-fit: contain;
     border-radius: 4px; box-shadow: 0 6px 20px rgba(0,0,0,0.12);
 }
