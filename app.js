@@ -3,7 +3,7 @@
    ============================================================ */
 const SUPABASE_URL = 'https://lvvcpazeczetawstddrv.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_eQXhJoYC0_AngShVkSMesg_Uy7VyEIy';
-// deployed: 20260829T040359Z
+// deployed: 20260830T010921Z
 
 /* ============================================================
    浮遊する金色の粒子と星の演出エンジン
